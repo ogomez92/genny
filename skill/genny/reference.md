@@ -48,7 +48,7 @@ genny fx voice.wav --fx telephone --fx reverb:mix=0.1 -o voice_radio.wav
 
 ## Pitch notation
 
-Anywhere a pitch is accepted: `C4`, `F#3`, `Bb2`, MIDI number `60`, or Hz `440hz` / `440.0`. Multiple notes: `"C4 E4 G4"` or `"C4,E4,G4"`. Named chord: `"C4:maj"` (chords: `genny list chords` → maj min dim aug sus2 sus4 maj7 min7 dom7 add9 power maj9 min9 oct).
+Anywhere a pitch is accepted: `C4`, `F#3`, `Bb2`, MIDI number `60`, or Hz `440hz` / `440.0`. **A bare integer is a MIDI note, not Hz** — `"pitch": 88` is E6 (~1.3 kHz), so always write Hz with the suffix: `"88hz"`. Multiple notes: `"C4 E4 G4"` or `"C4,E4,G4"`. Named chord: `"C4:maj"` (chords: `genny list chords` → maj min dim aug sus2 sus4 maj7 min7 dom7 add9 power maj9 min9 oct).
 
 ## Step notation (melodies / stingers)
 
@@ -162,7 +162,7 @@ Params (`genny list speech`):
 | param | default | meaning |
 |---|---|---|
 | `voice` | `male` | `male`, `female`, `child`, `whisper` (unvoiced); robots/creatures: `robot` (monotone + ring-mod), `android` (clean, snapped pitch, faint ring + chorus), `synth` (vocoder-style saw carrier, semitone-snapped), `bad_robot` (bit-crushed, stutters/dropouts/pitch hiccups), `evil_robot` (very low, octave-down sub, slow ring, overdrive), `monster` (huge tract, growl, distortion), `giant` (big slow natural), `alien` (tiny tract, high, warbling ring), `ghost` (swimming whisper) |
-| `pitch` | from voice | base F0 in Hz or a note name (male 115, female 205, child 280, robot 100, evil_robot 62, monster 58, alien 240); every preset still takes `pitch`/`formant_shift`/`rate` overrides |
+| `pitch` | from voice | base F0 as a note name or Hz **with the `hz` suffix** (`"90hz"`; a bare number like `90` is a MIDI note and gives a chirp). Defaults: male 115, female 205, child 280, robot 100, evil_robot 62, monster 58, alien 240 Hz; every preset still takes `pitch`/`formant_shift`/`rate` overrides |
 | `rate` | 1.0 | speed multiplier |
 | `formant_shift` | from voice | vocal-tract size: 0.85 = big/deep, 1.16 female, 1.28 child |
 | `breath` | from voice | breathiness 0..1 |
@@ -181,7 +181,7 @@ Phonemes (`genny list phonemes`), ARPAbet with stress digit on vowels (1 primary
 - nasals `M N NG`, liquids/glides `L R W Y`, flap/tap `DX`, trill `RR`
 
 Tips:
-- Output is dry mono; `normalize: -3` is a good level. A touch of `reverb` (mix 0.08–0.15, size 0.3) makes it sit in a mix; `telephone` (+ `distortion` light) = radio/announcer; `voice: robot`/`android`/`synth` = computer, `bad_robot` = broken machine, `evil_robot`/`monster` = villain/boss, `alien`/`ghost` = otherworldly (character voices are mono and dry — add fx on top); `pitch` + `formant_shift` 0.85 = giant/boss voice.
+- Output is dry mono; `normalize: -3` is a good level. A touch of `reverb` (mix 0.08–0.15, size 0.3) makes it sit in a mix; `telephone` (+ `distortion` light) = radio/announcer; `voice: robot`/`android`/`synth` = computer, `bad_robot` = broken machine, `evil_robot`/`monster` = villain/boss, `alien`/`ghost` = otherworldly (character voices are mono and dry — add fx on top); `pitch` (e.g. `"70hz"`) + `formant_shift` 0.85 = giant/boss voice.
 - Keep utterances short (1–4 words). It is intelligible but clearly synthetic; single letters and numbers are the strongest, long sentences the weakest.
 - Weakest sounds: `TH`/`DH`/`F`/`V` (quiet, easily confused), `NG`, and the letter-to-sound fallback for unknown English words.
 
