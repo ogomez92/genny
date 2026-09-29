@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+# rendered output (re-create with examples/build_library.py)
+sounds/
+*.wav
