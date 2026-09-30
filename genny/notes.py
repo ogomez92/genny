@@ -57,8 +57,33 @@ def note_to_midi(name: str) -> int:
     return (int(octave) + 1) * 12 + semi
 
 
+def to_hz(value) -> float:
+    """A frequency parameter (`freq`, `freq2`, speech `pitch`): a number is always Hz.
+
+    Accepts 110, 110.0, "110", "110hz" (all 110 Hz) or a note name such as "A2".
+    Unlike note lists (`to_freq`), a bare number is never read as a MIDI note, so
+    `{"freq": 55}` is a 55 Hz hum, not MIDI 55 (G3, 196 Hz).
+    """
+    if isinstance(value, bool):
+        raise ValueError("frequency cannot be a bool")
+    if isinstance(value, (int, float)):
+        return float(value)
+    s = str(value).strip()
+    if s.lower().endswith("hz"):
+        return float(s[:-2])
+    if _NOTE_RE.match(s):
+        return midi_to_freq(note_to_midi(s))
+    try:
+        return float(s)
+    except ValueError as e:
+        raise ValueError(f"cannot interpret frequency {value!r} (use Hz like 110 or '110hz', or a note like 'A2')") from e
+
+
 def to_freq(value) -> float:
-    """Accepts 'C4', 'F#3', a MIDI int 0..127, '440hz', or a float in Hz."""
+    """A note in a note list (`notes`, `steps`): 'C4', 'F#3', a MIDI int 0..127, '440hz', or a float in Hz.
+
+    Frequency *parameters* use `to_hz`, where a bare number is always Hz.
+    """
     if isinstance(value, bool):
         raise ValueError("pitch cannot be a bool")
     if isinstance(value, int):

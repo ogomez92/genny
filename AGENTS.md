@@ -48,7 +48,12 @@ genny fx voice.wav --fx telephone --fx reverb:mix=0.1 -o voice_radio.wav
 
 ## Pitch notation
 
-Anywhere a pitch is accepted: `C4`, `F#3`, `Bb2`, MIDI number `60`, or Hz `440hz` / `440.0`. Multiple notes: `"C4 E4 G4"` or `"C4,E4,G4"`. Named chord: `"C4:maj"` (chords: `genny list chords` → maj min dim aug sus2 sus4 maj7 min7 dom7 add9 power maj9 min9 oct).
+Two kinds of pitch input:
+
+- **Frequency parameters** (`freq`, `freq2` on sfx such as `tone`/`beep`/`alarm`, speech `pitch`): **a number is always Hz** — `"freq": 55` is a 55 Hz hum. `"110hz"`, `"110"` and a note name (`"A2"`) also work.
+- **Notes** (`notes` in synth layers, `steps` in seq layers, `genny synth`/`seq` arguments): `C4`, `F#3`, `Bb2`, a MIDI number `60`, or Hz `440hz` / `440.0`. Here a bare integer 0–127 is a MIDI note (musical context); write Hz with the suffix.
+
+Multiple notes: `"C4 E4 G4"` or `"C4,E4,G4"`. Named chord: `"C4:maj"` (chords: `genny list chords` → maj min dim aug sus2 sus4 maj7 min7 dom7 add9 power maj9 min9 oct).
 
 ## Step notation (melodies / stingers)
 

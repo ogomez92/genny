@@ -1183,8 +1183,8 @@ def _resolve(params: dict) -> dict:
         raise ValueError(f"unknown voice {voice!r}; choose from {list(VOICES)}")
     vs = dict(VOICES[voice])
     if p["pitch"] is not None:
-        from .notes import to_freq
-        vs["pitch"] = float(to_freq(p["pitch"]))
+        from .notes import to_hz
+        vs["pitch"] = to_hz(p["pitch"])
     if p["formant_shift"] is not None:
         vs["formant_shift"] = float(p["formant_shift"])
     if p["breath"] is not None:

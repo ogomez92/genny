@@ -7,7 +7,7 @@ from . import filters as F
 from . import osc as O
 from .core import DEFAULT_SR, mix, samples
 from .env import adsr, apply, perc, lfo
-from .notes import to_freq
+from .notes import to_hz
 
 REGISTRY: dict[str, dict] = {}
 
@@ -23,9 +23,9 @@ def _dec(n, tau, sr):
     return np.exp(-np.arange(n) / (tau * sr))
 
 
-@sfx("beep", "Simple UI beep.", freq=(880, "Hz or note"), dur=(0.12, "s"), wave=("sine", "sine|square|triangle|saw|pulse"))
+@sfx("beep", "Simple UI beep.", freq=(880, "Hz or note name (110, '110hz' or 'A2')"), dur=(0.12, "s"), wave=("sine", "sine|square|triangle|saw|pulse"))
 def beep(sr=DEFAULT_SR, freq=880, dur=0.12, wave="sine"):
-    f = to_freq(freq)
+    f = to_hz(freq)
     n = samples(dur + 0.02, sr)
     x = O.osc(wave, f, n, sr, width=0.3)
     if wave != "sine":
@@ -33,9 +33,9 @@ def beep(sr=DEFAULT_SR, freq=880, dur=0.12, wave="sine"):
     return apply(x, adsr(dur, 0.004, 0.0, 1.0, 0.02, sr)) * 0.8
 
 
-@sfx("blip", "Very short high blip (cursor move, tick).", freq=(1400, "Hz"), dur=(0.05, "s"))
+@sfx("blip", "Very short high blip (cursor move, tick).", freq=(1400, "Hz or note name (110, '110hz' or 'A2')"), dur=(0.05, "s"))
 def blip(sr=DEFAULT_SR, freq=1400, dur=0.05):
-    f = to_freq(freq)
+    f = to_hz(freq)
     n = samples(dur, sr)
     return O.square(f, n, sr) * perc(dur, 0.001, sr, curve=1.5) * 0.4
 
@@ -55,9 +55,9 @@ def pop(sr=DEFAULT_SR, freq=500):
     return O.sine(f, n, sr) * _dec(n, 0.02, sr) * perc(0.08, 0.0005, sr, curve=1.0) * 0.9
 
 
-@sfx("coin", "Classic coin / pickup: two quick rising notes.", freq=("B5", "first note"), up=(5, "semitones jump"), wave=("square", "square|sine|triangle"))
+@sfx("coin", "Classic coin / pickup: two quick rising notes.", freq=("B5", "first note or Hz"), up=(5, "semitones jump"), wave=("square", "square|sine|triangle"))
 def coin(sr=DEFAULT_SR, freq="B5", up=5, wave="square"):
-    f1 = to_freq(freq)
+    f1 = to_hz(freq)
     f2 = f1 * 2 ** (up / 12)
     n1 = samples(0.08, sr)
     n2 = samples(0.35, sr)
@@ -67,10 +67,10 @@ def coin(sr=DEFAULT_SR, freq="B5", up=5, wave="square"):
     return F.lowpass(y, 9000, sr) * 0.8
 
 
-@sfx("powerup", "Rising arpeggio power-up.", freq=("C5", "start note"), steps=(6, "count"), step=(3, "semitones per step"),
+@sfx("powerup", "Rising arpeggio power-up.", freq=("C5", "start note or Hz"), steps=(6, "count"), step=(3, "semitones per step"),
      rate=(0.05, "s per step"), wave=("square", "square|saw|sine"))
 def powerup(sr=DEFAULT_SR, freq="C5", steps=6, step=3, rate=0.05, wave="square"):
-    f0 = to_freq(freq)
+    f0 = to_hz(freq)
     parts = []
     for i in range(int(steps)):
         f = f0 * 2 ** (i * step / 12)
@@ -83,9 +83,9 @@ def powerup(sr=DEFAULT_SR, freq="C5", steps=6, step=3, rate=0.05, wave="square")
     return F.lowpass(mix(parts, sr), 8000, sr)
 
 
-@sfx("powerdown", "Falling arpeggio power-down / lose life.", freq=("C6", "start"), steps=(6, "count"), rate=(0.07, "s per step"))
+@sfx("powerdown", "Falling arpeggio power-down / lose life.", freq=("C6", "start note or Hz"), steps=(6, "count"), rate=(0.07, "s per step"))
 def powerdown(sr=DEFAULT_SR, freq="C6", steps=6, rate=0.07):
-    f0 = to_freq(freq)
+    f0 = to_hz(freq)
     parts = []
     for i in range(int(steps)):
         f = f0 * 2 ** (-i * 3 / 12)
@@ -165,11 +165,11 @@ def swoosh(sr=DEFAULT_SR, dur=0.25):
     return whoosh(sr, dur=dur, low=800, high=6000, direction="down")
 
 
-@sfx("alarm", "Alternating two-tone alarm / siren.", freq=(700, "Hz low"), freq2=(900, "Hz high"), rate=(4.0, "Hz alternation"), dur=(1.0, "s"), wave=("square", "square|sine|saw"))
+@sfx("alarm", "Alternating two-tone alarm / siren.", freq=(700, "low: Hz or note name"), freq2=(900, "high: Hz or note name"), rate=(4.0, "Hz alternation"), dur=(1.0, "s"), wave=("square", "square|sine|saw"))
 def alarm(sr=DEFAULT_SR, freq=700, freq2=900, rate=4.0, dur=1.0, wave="square"):
     n = samples(dur, sr)
     gate = (lfo(dur, rate, sr, "square")[:n] > 0)
-    f = np.where(gate, to_freq(freq), to_freq(freq2))
+    f = np.where(gate, to_hz(freq), to_hz(freq2))
     x = O.osc(wave, f, n, sr)
     x = F.lowpass(x, 5000, sr)
     return x * adsr(dur - 0.02, 0.005, 0.0, 1.0, 0.02, sr)[:n] * 0.5
@@ -192,9 +192,9 @@ def error(sr=DEFAULT_SR, freq=180, dur=0.3):
     return x * adsr(dur - 0.02, 0.003, 0.0, 1.0, 0.02, sr)[:n] * (0.4 + 0.6 * gate) * 0.5
 
 
-@sfx("success", "Bright rising two-note confirm.", freq=("E5", "first note"), up=(7, "semitones"), wave=("sine", "sine|triangle|square"))
+@sfx("success", "Bright rising two-note confirm.", freq=("E5", "first note or Hz"), up=(7, "semitones"), wave=("sine", "sine|triangle|square"))
 def success(sr=DEFAULT_SR, freq="E5", up=7, wave="sine"):
-    f1 = to_freq(freq)
+    f1 = to_hz(freq)
     f2 = f1 * 2 ** (up / 12)
     d1, d2 = 0.1, 0.35
     a = O.osc(wave, f1, samples(d1 + 0.02, sr), sr) * adsr(d1, 0.005, 0.0, 1.0, 0.02, sr)
@@ -213,10 +213,10 @@ def proximity(sr=DEFAULT_SR, freq=1000, rate=4.0, dur=1.0, width=0.4):
     return mix(parts, sr)
 
 
-@sfx("radar", "Radar ping with echo tail.", freq=(1200, "Hz"))
+@sfx("radar", "Radar ping with echo tail.", freq=(1200, "Hz or note name (110, '110hz' or 'A2')"))
 def radar(sr=DEFAULT_SR, freq=1200):
     n = samples(0.6, sr)
-    f = to_freq(freq) * (1 + 0.3 * _dec(n, 0.05, sr))
+    f = to_hz(freq) * (1 + 0.3 * _dec(n, 0.05, sr))
     x = O.sine(f, n, sr) * _dec(n, 0.12, sr)
     return x * perc(0.6, 0.002, sr, curve=1.0) * 0.8
 
@@ -315,11 +315,11 @@ def engine(sr=DEFAULT_SR, rpm=60, dur=2.0):
     return np.tanh(y * 1.5) * adsr(dur - 0.05, 0.05, 0.0, 1.0, 0.05, sr)[:n] * 0.6
 
 
-@sfx("magic", "Sparkly magic shimmer (random high bell notes).", dur=(0.8, "s"), density=(12, "notes"), freq=("C6", "base note"))
+@sfx("magic", "Sparkly magic shimmer (random high bell notes).", dur=(0.8, "s"), density=(12, "notes"), freq=("C6", "base note or Hz"))
 def magic(sr=DEFAULT_SR, dur=0.8, density=12, freq="C6"):
     from .instruments import render_note
     rng = np.random.default_rng(36)
-    base = to_freq(freq)
+    base = to_hz(freq)
     parts = []
     for i in range(int(density)):
         semi = rng.choice([0, 2, 4, 7, 9, 12, 14, 16])
@@ -341,10 +341,10 @@ def heartbeat(sr=DEFAULT_SR, rate=1.0, dur=2.0):
     return F.lowpass(mix(parts, sr), 200, sr)
 
 
-@sfx("tone", "Plain sustained tone with chosen wave.", freq=(440, "Hz or note"), dur=(1.0, "s"), wave=("sine", "any osc wave"))
+@sfx("tone", "Plain sustained tone with chosen wave.", freq=(440, "Hz or note name (110, '110hz' or 'A2')"), dur=(1.0, "s"), wave=("sine", "any osc wave"))
 def tone(sr=DEFAULT_SR, freq=440, dur=1.0, wave="sine"):
     n = samples(dur, sr)
-    x = O.osc(wave, to_freq(freq), n, sr)
+    x = O.osc(wave, to_hz(freq), n, sr)
     return x * adsr(dur - 0.02, 0.01, 0.0, 1.0, 0.02, sr)[:n] * 0.6
 
 

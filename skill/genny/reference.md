@@ -48,7 +48,12 @@ genny fx voice.wav --fx telephone --fx reverb:mix=0.1 -o voice_radio.wav
 
 ## Pitch notation
 
-Anywhere a pitch is accepted: `C4`, `F#3`, `Bb2`, MIDI number `60`, or Hz `440hz` / `440.0`. **A bare integer is a MIDI note, not Hz** — `"pitch": 88` is E6 (~1.3 kHz), so always write Hz with the suffix: `"88hz"`. Multiple notes: `"C4 E4 G4"` or `"C4,E4,G4"`. Named chord: `"C4:maj"` (chords: `genny list chords` → maj min dim aug sus2 sus4 maj7 min7 dom7 add9 power maj9 min9 oct).
+Two kinds of pitch input:
+
+- **Frequency parameters** (`freq`, `freq2` on sfx such as `tone`/`beep`/`alarm`, speech `pitch`): **a number is always Hz** — `"freq": 55` is a 55 Hz hum. `"110hz"`, `"110"` and a note name (`"A2"`) also work.
+- **Notes** (`notes` in synth layers, `steps` in seq layers, `genny synth`/`seq` arguments): `C4`, `F#3`, `Bb2`, a MIDI number `60`, or Hz `440hz` / `440.0`. Here a bare integer 0–127 is a MIDI note (musical context); write Hz with the suffix.
+
+Multiple notes: `"C4 E4 G4"` or `"C4,E4,G4"`. Named chord: `"C4:maj"` (chords: `genny list chords` → maj min dim aug sus2 sus4 maj7 min7 dom7 add9 power maj9 min9 oct).
 
 ## Step notation (melodies / stingers)
 
@@ -162,7 +167,7 @@ Params (`genny list speech`):
 | param | default | meaning |
 |---|---|---|
 | `voice` | `male` | `male`, `female`, `child`, `whisper` (unvoiced); robots/creatures: `robot` (monotone + ring-mod), `android` (clean, snapped pitch, faint ring + chorus), `synth` (vocoder-style saw carrier, semitone-snapped), `bad_robot` (bit-crushed, stutters/dropouts/pitch hiccups), `evil_robot` (very low, octave-down sub, slow ring, overdrive), `monster` (huge tract, growl, distortion), `giant` (big slow natural), `alien` (tiny tract, high, warbling ring), `ghost` (swimming whisper) |
-| `pitch` | from voice | base F0 as a note name or Hz **with the `hz` suffix** (`"90hz"`; a bare number like `90` is a MIDI note and gives a chirp). Defaults: male 115, female 205, child 280, robot 100, evil_robot 62, monster 58, alien 240 Hz; every preset still takes `pitch`/`formant_shift`/`rate` overrides |
+| `pitch` | from voice | base F0 in Hz (`90`, `"90hz"`) or a note name (`"F#2"`). Defaults: male 115, female 205, child 280, robot 100, evil_robot 62, monster 58, alien 240 Hz; every preset still takes `pitch`/`formant_shift`/`rate` overrides |
 | `rate` | 1.0 | speed multiplier |
 | `formant_shift` | from voice | vocal-tract size: 0.85 = big/deep, 1.16 female, 1.28 child |
 | `breath` | from voice | breathiness 0..1 |
