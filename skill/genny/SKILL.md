@@ -12,7 +12,7 @@ description: Generate game sounds as .wav files with the genny CLI from a free-f
 ```
 genny --version
 ```
-If it is missing: `uv tool install --editable /home/genny` (the repo lives there; `AGENTS.md` in it is the full manual). If uv fails with `os error 448` ("untrusted mount point") on a managed Python, add `--python "C:\Program Files\Python314\python.exe"` to use the system Python instead.
+If it is missing: `git clone https://github.com/ogomez92/genny` and `uv tool install --editable <that folder>` (`AGENTS.md` in the repo is the full manual). If `genny list fx` has no `loop` effect, the install is an old copy: reinstall from a fresh clone. If uv fails with `os error 448` ("untrusted mount point") on a managed Python, add `--python "C:\Program Files\Python314\python.exe"` to use the system Python instead.
 
 ## 1. Read the manual (once per session)
 
