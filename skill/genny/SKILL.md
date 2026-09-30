@@ -25,6 +25,7 @@ Read `reference.md` next to this file. It documents the spec format, note/step n
 - **Imaginative / descriptive requests** ("cat meows and is thrown in a blender", "haunted elevator ding") → decompose the scene into stages on the timeline and build each stage from primitives:
   - spoken words / letters / numbers / announcer callouts ("G", "fuel low", "level up!", "tres"): a `speech` layer (`{"type": "speech", "text": "fuel low", "params": {"voice": "female"}}`, `lang: "es"` for Spanish; character voices `robot`, `android`, `synth`, `bad_robot`, `evil_robot`, `monster`, `giant`, `alien`, `ghost`; set `pitch` in Hz, e.g. `90`); `genny say "text" --show` prints the phonemes; see the Speech section of `reference.md`
   - voices/animals: `flute`/`choir`/`synth` with `vibrato`, `tone` with pitch sweeps via `sweep_up`/`sweep_down`, `pitch`, `ringmod` for weirdness
+  - pinball/arcade machines, switches, coils: `solenoid`, `flipper`, `pop_bumper`, `slingshot`, `knocker`, `steel_ball`, `ball_roll`, `spinner`, `spring`, plus `chirp`/`board` for sound-board bleeps (no bells)
   - vehicles: `car_engine` (realistic, rpm/load/cylinders; render an rpm bank and crossfade at runtime — see reference)
   - machines: `engine`, `tone` with `saw`, `distortion`, `ringmod`, `tremolo`, `bitcrush`
   - impacts/violence: `hit`, `punch`, `explosion`, `glitch`, `stutter`, `speed` (tape stop), `reverse`

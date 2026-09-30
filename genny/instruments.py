@@ -257,6 +257,23 @@ def chiptri(freq, dur, sr=DEFAULT_SR, vel=1.0):
     return apply(x, adsr(dur, 0.002, 0.0, 1.0, 0.02, sr)) * 0.5
 
 
+@instrument("board", "80s pinball/arcade sound-board voice: DAC-gritty pulse with a pitch blip at each onset (bwip).",
+            width=(0.35, "pulse width 0.1..0.5"), blip=(7.0, "semitones the onset drops from"), bits=(5, "DAC bit depth (0 = clean)"),
+            vibrato=(0.0, "semitones of 9 Hz warble"))
+def board(freq, dur, sr=DEFAULT_SR, vel=1.0, width=0.35, blip=7.0, bits=5, vibrato=0.0):
+    rel = 0.03
+    n = _n(dur, sr, rel)
+    semis = blip * decay_env(n, 0.012, sr)
+    if vibrato:
+        semis = semis + vibrato * lfo(n / sr, 9.0, sr)[:n]
+    x = O.pulse(freq * 2 ** (semis / 12), n, sr, width=width)
+    if bits:
+        q = 2 ** (int(bits) - 1)
+        x = np.round(x * q) / q
+    x = F.lowpass(x, min(freq * 6, 6000), sr)
+    return apply(x, adsr(dur, 0.002, 0.08, 0.6, rel, sr)) * 0.45 * (0.5 + 0.5 * vel)
+
+
 @instrument("sine", "Pure sine tone with soft envelope.")
 def sine(freq, dur, sr=DEFAULT_SR, vel=1.0):
     n = _n(dur, sr, 0.05)

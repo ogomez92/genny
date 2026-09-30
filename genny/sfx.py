@@ -379,3 +379,5 @@ def render_sfx(name: str, sr: int = DEFAULT_SR, **params) -> np.ndarray:
 
 # Registers car_engine into REGISTRY (kept in its own module).
 from . import vehicle  # noqa: E402,F401
+# Pinball foley (solenoid, knocker, steel_ball, ...).
+from . import pinball  # noqa: E402,F401

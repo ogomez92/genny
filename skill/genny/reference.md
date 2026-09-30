@@ -124,12 +124,12 @@ A top-level JSON array of specs also works. `genny render batch.json` renders al
 - Plucked: `pluck`, `harp`, `guitar`
 - Bass: `bass`, `sub`, `wobble`
 - Leads/pads: `lead`, `pad`, `strings`, `brass`, `organ`, `flute`, `choir`, `pwm`
-- Retro: `chip` (pulse; `width` 0.125/0.25/0.5), `chiptri`
+- Retro: `chip` (pulse; `width` 0.125/0.25/0.5), `chiptri`, `board` (80s pinball/arcade sound-board voice: gritty pulse with an onset pitch blip)
 - Raw: `sine`, `square`, `saw`, `synth` (generic: `wave`, ADSR, `cutoff`, `res`, `fenv`, fm `ratio`/`index`)
 
 **Drums**: `kick`, `kick808`, `snare`, `clap`, `hihat`, `openhat`, `tom`, `rim`, `cowbell`, `crash`, `ride`, `shaker`, `tambourine`, `woodblock`, `taiko`, `zap_kick`.
 
-**SFX**: `beep`, `blip`, `click`, `pop`, `coin`, `powerup`, `powerdown`, `laser`, `zap`, `hit`, `punch`, `explosion`, `jump`, `whoosh`, `swoosh`, `alarm`, `siren`, `error`, `success`, `proximity`, `radar`, `riser`, `sweep_up`, `sweep_down`, `bubble`, `glitch`, `static`, `wind`, `thunder`, `footstep`, `door`, `engine`, `car_engine`, `magic`, `heartbeat`, `tone`, `noise`, `typewriter`, `countdown`.
+**SFX**: `beep`, `blip`, `click`, `pop`, `coin`, `powerup`, `powerdown`, `laser`, `zap`, `hit`, `punch`, `explosion`, `jump`, `whoosh`, `swoosh`, `alarm`, `siren`, `error`, `success`, `proximity`, `radar`, `riser`, `sweep_up`, `sweep_down`, `bubble`, `glitch`, `static`, `wind`, `thunder`, `footstep`, `door`, `engine`, `car_engine`, `magic`, `heartbeat`, `tone`, `noise`, `typewriter`, `countdown`; pinball/mechanical: `solenoid`, `flipper`, `pop_bumper`, `slingshot`, `knocker`, `steel_ball`, `ball_roll`, `spinner`, `spring`, `chirp` (see "Pinball / mechanical foley").
 
 **Speech**: `speech` layer / `genny say` — formant voice for letters, numbers and short game words; voices `male`, `female`, `child`, `whisper`, plus character voices `robot`, `android`, `synth`, `bad_robot`, `evil_robot`, `monster`, `giant`, `alien`, `ghost`; English + Spanish (`lang=es`). See "Speech" below.
 
@@ -197,6 +197,17 @@ Tips:
 - **Engine bank for a player car:** render 4–6 loops at fixed rpm (e.g. 1100, 2000, 3000, 4200, 5600; `"loop": 0.3`, `duration` 3.3) and at runtime equal-power crossfade the two nearest, each played at `rate = rpm / renderedRpm`. One sample pitched across the whole range sounds like a tape speeding up.
 - **Ignition / stall:** chain short `car_engine` layers — cranking is `rpm` 220–300 with `rough` 0.9 and a starter-motor `synth` saw with tremolo; a catch is a burst at 2300–2600 then settling to idle; a stall is 1100 → 700 → 420 with fades.
 - The generic `engine` sfx is a simple saw hum; prefer `car_engine` for anything the player drives.
+
+## Pinball / mechanical foley
+
+Real machines are mechanism, not music: build them from these instead of `bell`/`glass`/`marimba` (tonal mallets make a table sound like a bell tree). Each is a short noise transient + inharmonic steel modes that die in tens of ms + a wooden-cabinet thump.
+
+- `solenoid` — any coil or relay: `size` 0 (relay/switch tick) .. 1 (big coil), `metal` ring, `thump` cabinet thud, `bounce` armature rebound (the "ka-chak"). Use size 0 for menu ticks and switch hits.
+- `flipper` (`force`, `buzz` AC coil hum), `pop_bumper` (`tone` 0.6..1.6 tells bumpers apart), `slingshot` (`tone`), `knocker` (the replay/extra-ball BANG; `size`, `rattle`).
+- `steel_ball` — ball impact, `surface` metal (rail/post clank) | wood (tock) | rubber (thup) | plastic (target/ramp clack), `force` 0..1.
+- `ball_roll` — steel ball on a wooden playfield, `speed` 0..1; loop it with `"loop": 0.3`.
+- `spinner` — one flap tick per pass (`spins` > 1 = a decelerating whirr); `spring` — plunger, `action` pull (creak tick) | release (rod slam + boing), `tension`.
+- Solid-state sound board (80s pinball/arcade speaker): `chirp` sfx (pitch sweep with `warble` LFO, `steps` for stepped bip-bips, `bits` DAC grit) and the `board` instrument (gritty pulse with a pitch blip on every note) for score blips and jingles; `chiptri` makes the bass. Recipe: foley layer + one short `chirp`/`board` blip = a scoring hit (e.g. `pop_bumper` + square `chirp` 980→330 Hz 0.07 s `bits` 5 at gain 0.3).
 
 ## Design recipes (what tends to sound right)
 
