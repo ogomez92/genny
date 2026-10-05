@@ -7,7 +7,8 @@
 ## Setup / invocation
 
 ```
-uv tool install --editable <path-to-genny>   # then: genny ...
+python install.py --tool                     # in a clone of the repo: installs the `genny` command (uv) and this skill
+uv tool install --editable <path-to-genny>   # just the command
 # or, from the repo:
 uv run genny ...
 ```
@@ -23,14 +24,14 @@ Every command writes a WAV and prints `wrote <path> (<seconds>, mono|stereo, <sr
 
 ```
 genny synth <inst> "<notes>" [--dur S] [--vel 0..1] [--strum S] [-p k=v ...] [--fx NAME:k=v,k=v ...] -o out.wav
-genny seq   <inst> "<steps>" [--step S] [--legato F] [--gap S] [--transpose N] [-p ...] [--fx ...] -o out.wav
+genny seq   <inst> "<steps>" [--step S] [--legato F] [--gap S] [--transpose N] [--bpm N] [-p ...] [--fx ...] -o out.wav
 genny drum  <kind> [-p k=v ...] [--fx ...] -o out.wav
 genny sfx   <kind> [-p k=v ...] [--fx ...] -o out.wav
 genny say   "<text>" [--phonemes] [--show] [-p k=v ...] [--fx ...] -o out.wav   # speech (see "Speech")
 genny fx    in.wav --fx NAME[:k=v,...] [--fx ...] -o out.wav      # process an existing file
 genny render spec.json [more.json ...] [--out-dir DIR] [--quiet]   # or:  genny render --json '{...}'   or:  ... | genny render -
-genny list [instruments|drums|sfx|fx|speech|phonemes|words|waves|scales|chords] [--json]
-genny info file.wav ...      # duration / peak / rms
+genny list [instruments|drums|sfx|fx|speech|phonemes|words|waves|scales|chords] [--json]   # instruments: family + register
+genny info file.wav ...      # duration, peak/rms, loudness, sharpness, energy above 5 kHz (--json)
 genny play file.wav ...      # audition through the system player
 genny example                # prints a full example spec
 ```
@@ -42,6 +43,7 @@ genny sfx beep -p freq=880 -p dur=0.1 -o ui/beep.wav
 genny sfx proximity -p rate=8 -p dur=1 -o ui/wall_close.wav
 genny synth bell "C6" --dur 0.3 -p ratio=5.04 --fx reverb:mix=0.3 -o notif/ding.wav
 genny seq brass "C4:0.15 E4:0.15 G4:0.15 C5:0.6" --fx reverb:mix=0.25,size=0.7 -o win/fanfare.wav
+genny seq violin "D5:.5 E5:.5 F#5:1 A5:2" --bpm 100 --fx reverb:mix=0.2 -o tune.wav
 genny drum kick -p tune=48 -p decay=0.6 -o drums/kick.wav
 genny fx voice.wav --fx telephone --fx reverb:mix=0.1 -o voice_radio.wav
 ```
@@ -67,8 +69,9 @@ Whitespace-separated tokens for `seq`:
 | `C5:maj:0.5` | named chord for 0.5 s |
 | `-:0.1` | rest for 0.1 s |
 | `C5:0.2@0.6` | velocity 0.6 (softer, usually darker) |
+| `\|` | bar line, ignored (readability) |
 
-Instruments add their own release/ring after each note, so notes overlap naturally. `legato` < 1 shortens the sounding part of each step (staccato); `gap` adds silence between steps.
+Instruments add their own release/ring after each note, so notes overlap naturally. `legato` < 1 shortens the sounding part of each step (staccato); `gap` adds silence between steps. With a tempo (`"bpm"`, see "Music") the durations are beats instead of seconds.
 
 ## JSON spec format
 
@@ -79,11 +82,13 @@ Instruments add their own release/ring after each note, so notes overlap natural
   "duration": 1.5,                      // optional hard length (pads or cuts)
   "layers": [ ...layer objects... ],    // mixed together on one timeline
   "fx": [ {"type": "reverb", "mix": 0.2}, {"type": "compressor"} ],   // master chain, in order
+  "bpm": 120,                           // optional tempo: musical times in the layers are then beats (see "Music")
   "normalize": -1.0,                    // peak dB after fx; null to skip
+  "max_loudness": -6.0,                 // ear-weighted ceiling applied after normalize; null to disable
   "gain": 1.0,
   "trim": true,                         // drop silent tail
   "declick": true,
-  "loop": false                         // true or crossfade seconds: seamless loop (skips trim/declick)
+  "loop": false                         // true or crossfade seconds: seamless loop; "fold": musical loop (see "Music")
 }
 ```
 
@@ -96,7 +101,7 @@ Common keys for every layer: `"at"` (start seconds, default 0), `"gain"` (linear
 {"type": "seq",   "inst": "pluck", "steps": "C4:0.1 E4:0.1 G4:0.3", "step": 0.25, "legato": 1.0, "gap": 0, "transpose": 0, "vel": 1, "params": {}}
 {"type": "seq",   "inst": "piano", "steps": [{"note": "C4", "dur": 0.2}, {"notes": ["E4", "G4"], "dur": 0.4, "vel": 0.7}, {"note": "-", "dur": 0.1}]}
 {"type": "drum",  "kind": "kick", "vel": 1.0, "params": {"tune": 50}}
-{"type": "pattern", "kind": "hihat", "steps": "x-x-xxx-", "step": 0.125}      // or "hits": [0, 0.5, 0.75]
+{"type": "pattern", "kind": "hihat", "steps": "x-x-xXx-", "step": 0.125}      // x hit, X accent, o ghost; or "hits": [0, 0.5, 0.75]
 {"type": "sfx",   "kind": "whoosh", "params": {"dur": 0.4, "direction": "down"}}
 {"type": "speech", "text": "fuel low", "params": {"voice": "female"}}          // spoken words (see "Speech")
 {"type": "file",  "path": "existing.wav"}                                      // import a sample
@@ -111,7 +116,7 @@ Common keys for every layer: `"at"` (start seconds, default 0), `"gain"` (linear
 ```jsonc
 {
   "out_dir": "sounds/notifications",     // prefixed to each relative "out"
-  "fx": [{"type": "compressor"}],         // defaults inherited by sounds that don't set their own
+  "fx": [{"type": "compressor"}],         // defaults inherited by sounds that don't set their own (also sr, normalize, max_loudness, bpm)
   "sounds": [ { ...spec... }, { ...spec... } ]
 }
 ```
@@ -119,17 +124,21 @@ A top-level JSON array of specs also works. `genny render batch.json` renders al
 
 ## Catalog overview (run `genny list` for parameters)
 
-**Instruments** (`synth`/`seq` layers). Each note = `inst(freq, dur)`, returns note plus release.
-- Keys/mallets: `piano`, `epiano`, `marimba`, `vibraphone`, `kalimba`, `music_box`, `steel_drum`, `glass`, `bell`
-- Plucked: `pluck`, `harp`, `guitar`
-- Bass: `bass`, `sub`, `wobble`
-- Leads/pads: `lead`, `pad`, `strings`, `brass`, `organ`, `flute`, `choir`, `pwm`
-- Retro: `chip` (pulse; `width` 0.125/0.25/0.5), `chiptri`, `board` (80s pinball/arcade sound-board voice: gritty pulse with an onset pitch blip)
-- Raw: `sine`, `square`, `saw`, `synth` (generic: `wave`, ADSR, `cutoff`, `res`, `fenv`, fm `ratio`/`index`)
+**Instruments** (`synth`/`seq` layers). Each note = `inst(freq, dur)`, returns note plus release. `genny list instruments` shows every one with its family, the register it is voiced for (`range`) and its params.
+- Keys: `piano`, `felt_piano` (soft, lo-fi), `epiano` (Rhodes), `wurli`, `clav`, `harpsichord`, `organ` (drawbars; `upper`), `church_organ`, `accordion` (`musette`), `celesta`, `toy_piano`
+- Mallets and bells: `marimba`, `xylophone`, `vibraphone`, `glockenspiel`, `kalimba`, `music_box`, `steel_drum`, `handpan`, `bell` (`bright`, `ratio`), `glass`, `tubular_bell`, `gamelan`, `singing_bowl`, `timpani`
+- Plucked: `pluck`, `harp`, `guitar` (nylon), `steel_guitar`, `electric_guitar` (clean), `muted_guitar`, `dist_guitar`, `banjo`, `mandolin` (`tremolo`), `koto`, `sitar`, `pizzicato`
+- Bass: `bass` (analog synth), `sub`, `wobble`, `upright_bass`, `finger_bass`, `slap_bass`, `acid` (303), `reese`, `fm_bass`, `bass808`
+- Bowed: `strings` (ensemble), `violin`, `cello`
+- Winds: `flute`, `pan_flute`, `clarinet`, `oboe`, `sax`, `harmonica`, `whistle`, `ocarina`, `didgeridoo`
+- Brass: `brass` (synth section), `trumpet` (`mute`), `french_horn`, `trombone`, `tuba`
+- Synth leads and pads: `lead` (supersaw), `soft_lead`, `square_lead`, `synth_pluck`, `theremin`, `pad`, `warm_pad`, `glass_pad`, `string_machine`, `choir`, `pwm`
+- Retro: `chip` (pulse; `width` 0.125/0.25/0.5, `bright`), `chiptri`, `board` (80s pinball/arcade sound-board voice: gritty pulse with an onset pitch blip)
+- Raw: `sine`, `square`, `saw`, `synth` (generic and untamed: `wave`, ADSR, `cutoff`, `res`, `fenv`, fm `ratio`/`index`)
 
-**Drums**: `kick`, `kick808`, `snare`, `clap`, `hihat`, `openhat`, `tom`, `rim`, `cowbell`, `crash`, `ride`, `shaker`, `tambourine`, `woodblock`, `taiko`, `zap_kick`.
+**Drums**: `kick`, `kick808`, `snare`, `snare808`, `clap`, `snap`, `brush` (jazz; `swish`), `hihat`, `openhat`, `tom`, `rim`, `cowbell`, `crash`, `ride`, `shaker`, `tambourine`, `woodblock`, `taiko`, `zap_kick`; hand and world percussion: `conga` (`slap`), `bongo`, `djembe` (`stroke` bass|tone|slap), `tabla` (`stroke` na|ge|ke), `cajon` (`stroke` bass|snare), `timbale`, `clave`, `guiro`, `triangle`, `gong`, `sleigh`. (`timpani` is an instrument: it takes notes.)
 
-**SFX**: `beep`, `blip`, `click`, `pop`, `coin`, `powerup`, `powerdown`, `laser`, `zap`, `hit`, `punch`, `explosion`, `jump`, `whoosh`, `swoosh`, `alarm`, `siren`, `error`, `success`, `proximity`, `radar`, `riser`, `sweep_up`, `sweep_down`, `bubble`, `glitch`, `static`, `wind`, `thunder`, `footstep`, `door`, `engine`, `car_engine`, `magic`, `heartbeat`, `tone`, `noise`, `typewriter`, `countdown`; pinball/mechanical: `solenoid`, `flipper`, `pop_bumper`, `slingshot`, `knocker`, `steel_ball`, `ball_roll`, `spinner`, `spring`, `chirp` (see "Pinball / mechanical foley").
+**SFX**: `beep`, `blip`, `click`, `pop`, `coin`, `powerup`, `powerdown`, `laser`, `zap`, `hit`, `punch`, `explosion`, `jump`, `whoosh`, `swoosh`, `alarm`, `siren`, `error`, `success`, `proximity`, `radar`, `riser`, `sweep_up`, `sweep_down`, `bubble`, `glitch`, `static`, `wind`, `thunder`, `footstep`, `door`, `engine`, `car_engine`, `magic`, `heartbeat`, `tone`, `noise`, `vinyl` (record crackle), `typewriter`, `countdown`; pinball/mechanical: `solenoid`, `flipper`, `pop_bumper`, `slingshot`, `knocker`, `steel_ball`, `ball_roll`, `spinner`, `spring`, `chirp` (see "Pinball / mechanical foley").
 
 **Speech**: `speech` layer / `genny say` — formant voice for letters, numbers and short game words; voices `male`, `female`, `child`, `whisper`, plus character voices `robot`, `android`, `synth`, `bad_robot`, `evil_robot`, `monster`, `giant`, `alien`, `ghost`; English + Spanish (`lang=es`). See "Speech" below.
 
@@ -140,6 +149,83 @@ A top-level JSON array of specs also works. `genny render batch.json` renders al
 - Dynamics/utility: `compressor`, `limiter`, `gain`, `normalize`, `fade` (in,out), `trim`, `mono`, `loop` (seamless crossfade loop)
 
 `reverb`, `chorus`, `pan`, `autopan`, `width`, and `delay pingpong` produce stereo files; everything else keeps the channel count.
+
+## Instruments: register, brightness, loudness
+
+The instruments are voiced so they do not pierce. Brightness is set in Hz, not in harmonics: upper partials roll off above about 3 kHz, FM clang is capped by the note and filters key-track with a ceiling. A voice is rich in its low register and gets purer as it climbs, like a real instrument, so a melodic layer rarely needs a `lowpass` to be bearable. What is left to you:
+
+- **Write in the instrument's register.** The catalog gives a `range` for each (`piano` A0-C7, `upright_bass` E1-G3, `glockenspiel` G5-C8). Bass lines E1-G3, chords and pads C3-C5, melodies C4-C6. Above C6 use the voices made for it (`glockenspiel`, `celesta`, `music_box`, `glass`, `xylophone`, `whistle`) and keep them soft (`vel` 0.5-0.7, low `gain`): a clean tone at 2-4 kHz is where the ear is most sensitive.
+- **Brightness controls**: `vel` (softer = darker on most voices), `bright` (`piano`, `bell`, `brass`, `chip`, `clav`, `synth_pluck`), `cutoff` (`lead`, `pad`, `soft_lead`, `warm_pad`, `bass`, `acid`, `reese`), `tone` (`electric_guitar`, `finger_bass`, `dist_guitar`, `hihat`). Anything else: a `highshelf` (+3 dB at 3000 for air) or `lowpass` in the layer `fx`.
+- **Raw building blocks are not tamed**: the `synth` instrument and the `tone` sfx give exactly the wave and cutoff you ask for. Keep `cutoff` at or below about 4x the note (and under 3500) unless harshness is the point. The tonal sfx (`beep`, `blip`, `coin`, `powerup`, `laser`, `jump`, `alarm`...) round their square/saw waves themselves.
+- **Levels are matched**: at the same `gain` and `vel` every instrument is about as loud as a kick or snare, so `gain` is the mix (see "Music"). High notes are trimmed 1.5 dB per octave above C5.
+- **Loudness ceiling**: after peak normalisation, a sound that is still louder *to the ear* than `"max_loudness"` (default -6, ear-weighted dB) is turned down to it. Only held tones in the 1-5 kHz range ever reach it (a full-scale 3 kHz tone is 8 dB over); drums, noise, bass and short blips never do. `"max_loudness": null` on a spec or batch disables it.
+- **Check without ears**: `genny info file.wav` prints `loud` (K-weighted level of the loudest 0.4 s), `ear` (ear-weighted level of the loudest 0.2 s: what the ceiling limits), `sharp` (sharpness in acum) and `above5k` (share of energy above 5 kHz). For anything with a pitch: `sharp` up to about 1.6 is soft, 1.6-2.0 bright, above 2.0 it bites (a pure tone already reads 1.0 at C6 and 1.5 at C7); `above5k` over 3 % is harsh. Hats, cymbals and shakers are 2.5-3.5 by nature: keep them quiet instead.
+
+## Music (tempo, loops, styles)
+
+Set `"bpm"` on a spec (or on a batch, a group or one layer) and every musical time in it is in **beats** instead of seconds: `at`, `dur`, the durations in `steps`, `step`, `gap`, `hits`, `every`. Performance and sound-design times (`strum`, instrument/sfx `params`, fx times, `tail`, `duration`) stay in seconds.
+
+```jsonc
+{
+  "out": "funk_loop.wav", "bpm": 104,
+  "beats": 16,                // hard length: 4 bars of 4/4
+  "tail": 1.5,                // seconds of ring-out kept after the last beat (ignored with "loop": "fold")
+  "layers": [
+    {"type": "seq", "inst": "slap_bass", "step": 1, "steps": "E2:.5 -:.25 E2:.25 -:.25 G2:.25 A2:.5 -:.5 E3:.25 -:.25 D3:.5 E3:.5 | E2:1 -:1 G2:1 A2:1", "gain": 0.9},
+    {"type": "seq", "inst": "clav", "step": 1, "steps": "-:.5 [G3,B3,D4]:.25 -:1.25 [A3,C#4,E4]:.25 -:1.75", "gain": 0.45, "at": 8},
+    {"type": "pattern", "kind": "kick",  "steps": "X--x------X--x--", "bars": 4, "gain": 0.7},
+    {"type": "pattern", "kind": "snare", "steps": "----X--o-o--X--o", "bars": 4, "gain": 0.55},
+    {"type": "pattern", "kind": "hihat", "steps": "x-x-x-x-x-x-x-xx", "bars": 4, "gain": 0.25, "swing": 0.15}
+  ],
+  "fx": [{"type": "reverb", "mix": 0.14, "size": 0.45}, {"type": "compressor", "threshold": -16, "ratio": 2.5}]
+}
+```
+
+- **`steps` for notes**: durations are beats (`C4:1` a quarter, `:.5` an eighth, `:.25` a sixteenth, `:.3333` a triplet eighth); a token without a duration lasts `step` beats (default 0.25, so set `"step": 1` for quarter-note lines). `|` is a bar line and is ignored. One-shot: `genny seq sax "C4:1 E4:.5 G4:1.5" --bpm 96`.
+- **`pattern` for drums**: `steps` is a grid, by default sixteenths with a tempo (`"step": 0.25` beats; `0.3333` for triplets, `0.125` for 32nd rolls). `x` = hit, `X` = accent (1.4x), `o` = ghost note (0.4x), anything else = rest; spaces and `|` are ignored. `"bars": N` plays the written pattern N times. `"swing": 0..0.6` delays every other step by that fraction of a step (0.15 lazy, 0.33 shuffle; or write true triplets with `"step": 0.3333`).
+- **Length and loops**: `"beats"` fixes the length. `"loop": "fold"` makes a sample-exact musical loop: whatever rings past the last beat (release tails, reverb) is laid back over the start, which is what the next repetition would sound like, so the file loops with no gap, click or missing tail. (`"loop": true` is the crossfade loop for drones and engines, not for music.)
+- **Mix by `gain`** (instruments are level-matched): kick 1.0, snare/clap 0.6-0.85, hats/shaker/ride 0.25-0.4, crash 0.3-0.5, bass 0.8-0.9, chords and pads 0.35-0.5, arpeggios 0.3-0.4, lead 0.6-0.8, counter-melody 0.4-0.5. A `distortion` on a layer brings it to full scale: drop that layer to 0.25-0.35. Master: a small `reverb` (mix 0.12-0.25) and a gentle `compressor` (threshold -16, ratio 2.5), `normalize` -2.
+- **Per-note samples for a game's own sequencer**: render one file per reference pitch every 6-12 semitones (the engine re-pitches by a few semitones), all with the same spec apart from the note. Do not bake LFOs, tremolo or detuned pairs into them (re-pitching changes their speed: a wobble that drifts against the beat); add movement at runtime or keep it very slow.
+
+**Style palette.** `styles.json` (next to the skill's `SKILL.md`; in the repo `examples/library/styles.json`, written by `examples/build_styles.py`) holds a complete 4-8 bar loop for each of these, a dozen lines each: find `"out": "<style>.wav"` and read that entry before writing your own.
+
+| style | bpm | drums | bass | harmony | lead and colour |
+|---|---|---|---|---|---|
+| `lofi` | 70-85 | soft `kick`, `snap` + `brush` backbeat, dark `hihat`, swing 0.18 | `upright_bass` | `epiano` 9th chords | `felt_piano`, `vinyl` sfx bed, master `lowpass` 5000 |
+| `jazz_swing` | 120-180 | `ride` in triplets, `hihat` on 2 and 4, `brush` | walking `upright_bass` | sparse `piano` stabs | `trumpet` (`mute`), `sax`, `vibraphone` |
+| `bossa_nova` | 120-140 | `rim` bossa clave, `shaker` 16ths, soft `kick` | `upright_bass` root-fifth | `guitar` syncopated chords | `flute` |
+| `blues_shuffle` | 90-120 | triplet grid: `kick`, `snare`, `hihat` | walking `finger_bass` | `electric_guitar` boogie 5th-6th | `harmonica` |
+| `soul_ballad` | 60-80 | `kick`, `snap`, quiet `hihat` | `finger_bass` | `wurli`, `strings` pad | `sax` |
+| `funk` | 95-115 | syncopated `kick`, ghosted `snare`, 16th `hihat` | `slap_bass` | `clav`, `muted_guitar` scratch | `brass` stabs |
+| `disco` | 115-125 | four-on-the-floor, off-beat `openhat`, `clap` | octave `finger_bass` | `string_machine`, `clav` chick | `violin` line |
+| `reggae` | 70-80 | one drop: `kick` + `rim` on beat 3, swung `hihat` | spacious `finger_bass` (`tone` 1100) | `organ` + `muted_guitar` off-beat skank | `trombone` |
+| `latin_salsa` | 90-100 | `clave` 2-3, `conga` tumbao, `cowbell`, `timbale`, `guiro` | anticipated `upright_bass` | `piano` montuno | `trumpet` |
+| `reggaeton` | 90-98 | dembow: `kick` every beat, `snare808` on "a" of 1 and "and" of 2 | `bass808` | `warm_pad` | `marimba` hook |
+| `rock` | 110-150 | `kick`/`snare` backbeat, 8th `hihat`, `crash` | `finger_bass` eighths | `electric_guitar` power chords + `distortion` fx | `dist_guitar` |
+| `metal` | 150-190 | 16th double `kick`, half-time `snare` | `finger_bass` + light `distortion` | `electric_guitar` gallops + `distortion` drive 16 | |
+| `pop` | 100-120 | `kick`, `clap`, 8th `hihat` | `finger_bass` | `piano` chords | `soft_lead`, `synth_pluck` arp |
+| `synthwave` | 90-110 | four-on-the-floor, `snare808` with reverb, `tom` fills | `bass` eighths | `string_machine` | `lead` + chorus, `synth_pluck` arp with delay |
+| `house` | 120-128 | four-on-the-floor, `clap`, off-beat `openhat` | off-beat `fm_bass` | `piano` stabs, `warm_pad` | |
+| `acid_techno` | 128-136 | four-on-the-floor, off-beat `hihat`, `clap`, `rim` | `acid` 16ths, accents by `@vel` | | |
+| `drum_and_bass` | 165-175 | two-step `kick`, `snare` on 2 and 4 with ghosts | long `reese` notes | `glass_pad` | `bell` stabs with delay |
+| `trap` | 130-150 | half-time `clap` on 3, `hihat` 16ths with 32nd rolls | long `bass808` | `warm_pad` | dark sparse `bell` (`bright` 0.6) |
+| `chiptune` | 130-160 | bitcrushed `kick`/`snare`, short `hihat` | `chiptri` | fast `chip` arpeggio (`width` 0.125) | `chip` (`width` 0.25) |
+| `orchestral_heroic` | 90-120 | `timpani`, `taiko`, `crash` accents | `cello` | `strings` chords | `french_horn` theme, `trumpet` answer, `harp` gliss |
+| `baroque` | 90-110 | none | `cello` walking line | `harpsichord` broken chords | `oboe`, `violin` |
+| `ragtime` | 90-105 | none | `piano` left-hand stride | | `piano` syncopated right hand |
+| `lullaby` | 70-90 (3/4) | none | | `celesta` broken chords, `glass_pad` | `music_box` |
+| `spooky` | 80-100 | `timpani` | | `church_organ` diminished chords, `celesta` ostinato | `theremin`, `tubular_bell` |
+| `christmas` | 100-120 | `sleigh` eighths | `upright_bass` | `strings`, `french_horn` | `glockenspiel`, `tubular_bell` |
+| `celtic_jig` | 110-125 (6/8) | `djembe` as bodhran | | `harp` chords | `violin` fiddle (`attack` 0.025), `whistle` |
+| `bluegrass` | 110-130 | none (the `mandolin` chop is the snare) | `upright_bass` on 1 and 3 | `steel_guitar` boom-chick | `banjo` roll, `violin` |
+| `polka_oompah` | 110-125 | `kick`, `snare` off-beats, `crash` | `tuba` | `accordion` off-beats | `clarinet` |
+| `tango` | 110-125 | none | `upright_bass` | staccato `accordion`, `piano` | `violin` (`vibrato` 1.4) |
+| `andean` | 90-110 | low `taiko` as bombo, `shaker` | `guitar` bass notes | `guitar`, `mandolin` (`tremolo` 12) | `pan_flute` |
+| `middle_eastern` | 90-105 | `djembe` bass/slap (dum-tek), `tambourine` | | `strings` drone, `pluck` riff | `oboe` in Hijaz (D Eb F# G A Bb C) |
+| `indian_raga` | 80-100 | `tabla` ge/na/ke | | `sitar` drone (root + fifth) | `sitar` |
+| `japanese` | 70-90 | sparse `taiko`, `woodblock` | | `koto` arpeggios in the In scale (D Eb G A Bb) | `pan_flute` (`breath` 0.5) |
+| `gamelan` | 90-100 | `gong` on the cycle | `handpan` | interlocking `gamelan` patterns | `gamelan` core melody |
+| `ambient` | 50-70 | none | | `warm_pad`, `glass_pad` | `handpan`, `singing_bowl`, reverb mix 0.4 |
 
 ## Speech (spoken letters, numbers, short words)
 
@@ -211,11 +297,11 @@ Real machines are mechanism, not music: build them from these instead of `bell`/
 
 ## Design recipes (what tends to sound right)
 
-- **UI / notification**: short (0.1–0.6 s), high-ish (C5–C7), `bell`/`glass`/`marimba`/`sine`, a small `reverb` (mix 0.15–0.3, size 0.3–0.5). Two rising notes = positive, two falling = negative. Keep `normalize` at -1 to -3 dB.
+- **UI / notification**: short (0.1–0.6 s), C5–C6 (up to C7 only with `glass`/`celesta`/`glockenspiel`/`music_box` at `vel` ≤ 0.7), `bell`/`glass`/`marimba`/`kalimba`/`celesta`, a small `reverb` (mix 0.15–0.3, size 0.3–0.5). Two rising notes = positive, two falling = negative. Keep `normalize` at -1 to -3 dB.
 - **Wall proximity / radar**: `sfx proximity` with `rate` 2 (far) → 12 (close); or a `beep` layer with `repeat`/`every`.
-- **Stingers**: `seq` 3–6 notes, 0.08–0.15 s each, ending on a longer note or chord; layer a `pad`/`strings` chord underneath at `gain` 0.4–0.6; master `reverb` mix 0.2–0.35.
-- **Win / fanfare**: `brass` or `lead` arpeggio up a major triad ending on the octave chord; add `crash` or `taiko` at `at: 0`; `chip`+`bitcrush` for retro.
-- **Game over**: descending minor line (`piano`, `chip`, `organ`), slow `pad` minor chord, `powerdown` sfx, `taiko`/`kick808`; darken with `lowpass` 1500–3000 or `muffle`; long `reverb` (size 0.8).
+- **Stingers**: `seq` 3–6 notes, 0.08–0.15 s each, ending on a longer note or chord; layer a `pad`/`strings` chord underneath at `gain` 0.4–0.6; master `reverb` mix 0.2–0.35. For a flavour, borrow the lead and harmony instruments of a style from the palette in "Music" (`koto` + `pan_flute`, `banjo` + `violin`, `harpsichord` + `oboe`...).
+- **Win / fanfare**: `brass`, `trumpet` or `lead` arpeggio up a major triad ending on the octave chord, `french_horn`/`strings` underneath; add `crash`, `timpani` or `taiko` at `at: 0`; `chip`+`bitcrush` for retro.
+- **Game over**: descending minor line (`piano`, `felt_piano`, `cello`, `chip`, `organ`), slow `pad`/`warm_pad` minor chord, `powerdown` sfx, `taiko`/`kick808`/`gong`; darken with `lowpass` 1500–3000 or `muffle`; long `reverb` (size 0.8).
 - **Impacts**: `hit`/`punch`/`explosion` + `kick` layer for weight; `distortion` for crunch; `lowpass` sweep for distance.
 - **Layering rule of thumb**: 2–4 layers; one body (low), one transient (click/noise), one tail (reverb/pad). Sum gains ≈ 1–1.5, normalize handles the rest.
 - **Variations**: change `vel`, `transpose`, `params.decay`, effect `mix`, or the note set. Same spec with a different `seed`-free variation still renders identically, so name files by intent (`ui_confirm_soft.wav`).

@@ -165,12 +165,15 @@ def osc(wave: str, freq, n: int, sr: int = DEFAULT_SR, **kw) -> np.ndarray:
         return organ(freq, n, sr)
     if wave == "wavefold":
         return wavefold(freq, n, sr, amount=float(kw.get("amount", 2.0)))
+    # Noise is seeded (0 unless the caller passes one): the same spec always renders the same file.
+    seed = kw.get("seed")
+    seed = 0 if seed is None else int(seed)
     if wave in ("noise", "white"):
-        return white(n, kw.get("seed"))
+        return white(n, seed)
     if wave == "pink":
-        return pink(n, kw.get("seed"))
+        return pink(n, seed)
     if wave == "brown":
-        return brown(n, kw.get("seed"), sr)
+        return brown(n, seed, sr)
     raise ValueError(f"unknown wave {wave!r}; choose from {WAVES}")
 
 

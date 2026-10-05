@@ -138,11 +138,14 @@ def parse_sequence(text: str, default_dur: float = 0.25) -> list[dict]:
       C4:maj:0.5    named chord (see CHORDS)
       -:0.25        rest
       C4:0.5@0.6    velocity 0..1 after '@'
+      |             bar line, ignored (for readability)
 
     Returns list of {"pitches": [hz...], "dur": float, "vel": float}; pitches empty for a rest.
     """
     steps = []
     for tok in text.split():
+        if tok == "|":   # cosmetic bar line
+            continue
         vel = 1.0
         if "@" in tok:
             tok, v = tok.rsplit("@", 1)

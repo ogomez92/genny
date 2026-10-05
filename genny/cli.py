@@ -58,6 +58,8 @@ def cmd_synth(args):
 def cmd_seq(args):
     layer = {"type": "seq", "inst": args.inst, "steps": args.steps, "params": _kv(args.p), "vel": args.vel,
              "legato": args.legato, "gap": args.gap, "step": args.step, "transpose": args.transpose}
+    if args.bpm:
+        layer["bpm"] = args.bpm
     _finish(args, layer)
 
 
@@ -123,8 +125,13 @@ def cmd_render(args):
 
 def _catalog() -> dict:
     def table(reg):
-        return {k: {"desc": v["desc"], "params": {p: {"default": d, "help": h} for p, (d, h) in v["params"].items()}}
-                for k, v in reg.items()}
+        out = {}
+        for k, v in reg.items():
+            out[k] = {"desc": v["desc"], "params": {p: {"default": d, "help": h} for p, (d, h) in v["params"].items()}}
+            for extra in ("family", "range"):   # instruments: what kind of voice, and the register it is voiced for
+                if extra in v:
+                    out[k][extra] = v[extra]
+        return out
     return {
         "instruments": table(I.REGISTRY),
         "drums": table(D.REGISTRY),
@@ -156,19 +163,26 @@ def cmd_list(args):
         else:
             for name, e in entries.items():
                 ps = ", ".join(f"{p}={v['default']!r}" for p, v in e["params"].items())
-                print(f"  {name:<12} {e['desc']}")
+                tag = f"[{e['family']}, {e['range']}] " if "range" in e else ""
+                print(f"  {name:<12} {tag}{e['desc']}")
                 if ps:
                     print(f"  {'':<12}   params: {ps}")
         print()
 
 
 def cmd_info(args):
+    from .analysis import describe
+    out = []
     for f in args.files:
         y, sr = read_wav(f)
-        mono = y if y.ndim == 1 else y.mean(axis=1)
-        peak = float(np.max(np.abs(y))) if y.size else 0.0
-        rms = float(np.sqrt(np.mean(mono ** 2))) if mono.size else 0.0
-        print(f"{f}: {y.shape[0] / sr:.3f}s {'stereo' if y.ndim == 2 else 'mono'} {sr}Hz peak={20 * np.log10(peak + 1e-9):.1f}dB rms={20 * np.log10(rms + 1e-9):.1f}dB")
+        d = describe(y, sr)
+        d["file"] = str(f)
+        out.append(d)
+        if not args.json:
+            print(f"{f}: {d['seconds']:.3f}s {'stereo' if d['channels'] == 2 else 'mono'} {sr}Hz peak={d['peak_db']:.1f}dB rms={d['rms_db']:.1f}dB "
+                  f"loud={d['loudness']:.1f} ear={d['ear']:.1f} sharp={d['sharpness']:.2f} above5k={100 * d['above_5k']:.1f}%")
+    if args.json:
+        print(json.dumps(out, indent=2))
 
 
 def cmd_play(args):
@@ -223,6 +237,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--legato", type=float, default=1.0, help="note length as fraction of step (0.5 = staccato)")
     s.add_argument("--gap", type=float, default=0.0, help="extra silence between steps")
     s.add_argument("--transpose", type=float, default=0.0, help="semitones")
+    s.add_argument("--bpm", type=float, default=None, help="tempo: step durations, --step and --gap are then in beats")
     s.add_argument("--vel", type=float, default=1.0)
     s.add_argument("-p", action="append", metavar="k=v")
     common(s, "seq.wav")
@@ -270,8 +285,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_list)
 
-    s = sub.add_parser("info", help="print duration/peak/rms of wav files")
+    s = sub.add_parser("info", help="print duration, peak/rms, loudness and brightness (sharpness, energy above 5 kHz) of wav files")
     s.add_argument("files", nargs="+")
+    s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_info)
 
     s = sub.add_parser("play", help="play wav files through the system player")

@@ -1,6 +1,6 @@
 [project]
 name = "genny"
-version = "0.1.0"
+version = "0.2.0"
 description = "Procedural sound generator CLI for games: synths, drums, sfx, car engines, formant speech, filters and effects. Designed to be driven by AI agents."
 readme = "README.md"
 requires-python = ">=3.10"

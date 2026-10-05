@@ -23,13 +23,20 @@ def _dec(n, tau, sr):
     return np.exp(-np.arange(n) / (tau * sr))
 
 
+def _round(x, freq, sr, harm=5.0, lo=2000.0, hi=4000.0):
+    """Rounds the corners of a square/saw so a beep is clear without being piercing: a lowpass that
+    keeps `harm` harmonics of the tone but stays inside [lo, hi] Hz. `freq` may be a sweep array."""
+    fc = np.clip(np.asarray(freq, dtype=np.float64) * harm, lo, hi)
+    return F.biquad(x, "lowpass", float(fc) if fc.ndim == 0 else fc, sr, q=0.707)
+
+
 @sfx("beep", "Simple UI beep.", freq=(880, "Hz or note name (110, '110hz' or 'A2')"), dur=(0.12, "s"), wave=("sine", "sine|square|triangle|saw|pulse"))
 def beep(sr=DEFAULT_SR, freq=880, dur=0.12, wave="sine"):
     f = to_hz(freq)
     n = samples(dur + 0.02, sr)
     x = O.osc(wave, f, n, sr, width=0.3)
     if wave != "sine":
-        x = F.lowpass(x, min(f * 8, 12000), sr) * 0.6
+        x = _round(x, f, sr) * 0.6
     return apply(x, adsr(dur, 0.004, 0.0, 1.0, 0.02, sr)) * 0.8
 
 
@@ -37,7 +44,7 @@ def beep(sr=DEFAULT_SR, freq=880, dur=0.12, wave="sine"):
 def blip(sr=DEFAULT_SR, freq=1400, dur=0.05):
     f = to_hz(freq)
     n = samples(dur, sr)
-    return O.square(f, n, sr) * perc(dur, 0.001, sr, curve=1.5) * 0.4
+    return _round(O.square(f, n, sr), f, sr, lo=2400, hi=4200) * perc(dur, 0.001, sr, curve=1.5) * 0.4
 
 
 @sfx("click", "Mechanical click / tick.", tone=(3000, "Hz"))
@@ -64,7 +71,9 @@ def coin(sr=DEFAULT_SR, freq="B5", up=5, wave="square"):
     a = O.osc(wave, f1, n1, sr) * 0.5
     b = O.osc(wave, f2, n2, sr) * 0.5 * adsr(0.15, 0.002, 0.1, 0.5, 0.2, sr)[:n2]
     y = np.concatenate([a, b])
-    return F.lowpass(y, 9000, sr) * 0.8
+    if wave == "sine":
+        return y * 0.8
+    return _round(y, np.concatenate([np.full(n1, f1), np.full(n2, f2)]), sr) * 0.8
 
 
 @sfx("powerup", "Rising arpeggio power-up.", freq=("C5", "start note or Hz"), steps=(6, "count"), step=(3, "semitones per step"),
@@ -76,11 +85,14 @@ def powerup(sr=DEFAULT_SR, freq="C5", steps=6, step=3, rate=0.05, wave="square")
         f = f0 * 2 ** (i * step / 12)
         d = rate if i < steps - 1 else rate * 5
         n = samples(d, sr)
-        x = O.osc(wave, f, n, sr) * 0.45 * adsr(d, 0.002, 0.0, 1.0, 0.0, sr)[:n]
+        x = O.osc(wave, f, n, sr)
+        if wave != "sine":
+            x = _round(x, f, sr)
+        x = x * 0.45 * adsr(d, 0.002, 0.0, 1.0, 0.0, sr)[:n]
         if i == steps - 1:
             x *= _dec(n, d / 3, sr)
         parts.append((x, i * rate))
-    return F.lowpass(mix(parts, sr), 8000, sr)
+    return mix(parts, sr)
 
 
 @sfx("powerdown", "Falling arpeggio power-down / lose life.", freq=("C6", "start note or Hz"), steps=(6, "count"), rate=(0.07, "s per step"))
@@ -90,9 +102,9 @@ def powerdown(sr=DEFAULT_SR, freq="C6", steps=6, rate=0.07):
     for i in range(int(steps)):
         f = f0 * 2 ** (-i * 3 / 12)
         n = samples(rate * (1 if i < steps - 1 else 4), sr)
-        x = O.square(f, n, sr) * 0.4 * _dec(n, rate * 2, sr)
+        x = _round(O.square(f, n, sr), f, sr) * 0.4 * _dec(n, rate * 2, sr)
         parts.append((x, i * rate))
-    return F.lowpass(mix(parts, sr), 6000, sr)
+    return mix(parts, sr)
 
 
 @sfx("laser", "Descending laser / pew.", start=(2400, "Hz"), end=(300, "Hz"), dur=(0.25, "s"), wave=("saw", "saw|square|sine"))
@@ -100,7 +112,7 @@ def laser(sr=DEFAULT_SR, start=2400, end=300, dur=0.25, wave="saw"):
     f = O.sweep(start, end, dur, sr)
     n = f.shape[0]
     x = O.osc(wave, f, n, sr)
-    x = F.lowpass(x, 8000, sr) * perc(dur, 0.002, sr, curve=1.5)
+    x = (x if wave == "sine" else _round(x, f, sr, harm=4, lo=1800, hi=4200)) * perc(dur, 0.002, sr, curve=1.5)
     return x * 0.6
 
 
@@ -148,7 +160,7 @@ def jump(sr=DEFAULT_SR, start=300, end=900, dur=0.18):
     f = O.sweep(start, end, dur, sr)
     n = f.shape[0]
     x = O.square(f, n, sr)
-    return F.lowpass(x, 6000, sr) * adsr(dur - 0.03, 0.005, 0.0, 1.0, 0.03, sr)[:n] * 0.45
+    return _round(x, f, sr, harm=5, lo=1800, hi=3800) * adsr(dur - 0.03, 0.005, 0.0, 1.0, 0.03, sr)[:n] * 0.45
 
 
 @sfx("whoosh", "Air whoosh / swipe (filtered noise sweep).", dur=(0.5, "s"), low=(300, "Hz"), high=(4000, "Hz"), direction=("up", "up|down"))
@@ -171,7 +183,7 @@ def alarm(sr=DEFAULT_SR, freq=700, freq2=900, rate=4.0, dur=1.0, wave="square"):
     gate = (lfo(dur, rate, sr, "square")[:n] > 0)
     f = np.where(gate, to_hz(freq), to_hz(freq2))
     x = O.osc(wave, f, n, sr)
-    x = F.lowpass(x, 5000, sr)
+    x = F.lowpass(x, 3400, sr)
     return x * adsr(dur - 0.02, 0.005, 0.0, 1.0, 0.02, sr)[:n] * 0.5
 
 
@@ -179,7 +191,7 @@ def alarm(sr=DEFAULT_SR, freq=700, freq2=900, rate=4.0, dur=1.0, wave="square"):
 def siren(sr=DEFAULT_SR, low=500, high=1000, rate=0.7, dur=2.0):
     n = samples(dur, sr)
     f = low + (high - low) * (0.5 + 0.5 * lfo(dur, rate, sr, "triangle")[:n])
-    x = F.lowpass(O.saw(f, n, sr), 4000, sr)
+    x = F.lowpass(O.saw(f, n, sr), 3000, sr)
     return x * adsr(dur - 0.05, 0.02, 0.0, 1.0, 0.05, sr)[:n] * 0.5
 
 
@@ -197,8 +209,12 @@ def success(sr=DEFAULT_SR, freq="E5", up=7, wave="sine"):
     f1 = to_hz(freq)
     f2 = f1 * 2 ** (up / 12)
     d1, d2 = 0.1, 0.35
-    a = O.osc(wave, f1, samples(d1 + 0.02, sr), sr) * adsr(d1, 0.005, 0.0, 1.0, 0.02, sr)
-    b = O.osc(wave, f2, samples(d2 + 0.1, sr), sr) * adsr(d2, 0.005, 0.15, 0.6, 0.1, sr)
+    a = O.osc(wave, f1, samples(d1 + 0.02, sr), sr)
+    b = O.osc(wave, f2, samples(d2 + 0.1, sr), sr)
+    if wave != "sine":
+        a, b = _round(a, f1, sr), _round(b, f2, sr)
+    a = a * adsr(d1, 0.005, 0.0, 1.0, 0.02, sr)
+    b = b * adsr(d2, 0.005, 0.15, 0.6, 0.1, sr)
     return mix([(a, 0), (b, d1)], sr) * 0.7
 
 
@@ -236,7 +252,10 @@ def riser(sr=DEFAULT_SR, dur=2.0, start=100, end=2000):
 def sweep_up(sr=DEFAULT_SR, start=200, end=2000, dur=0.4, wave="sine"):
     f = O.sweep(start, end, dur, sr)
     n = f.shape[0]
-    return O.osc(wave, f, n, sr) * adsr(dur - 0.05, 0.01, 0.0, 1.0, 0.05, sr)[:n] * 0.6
+    x = O.osc(wave, f, n, sr)
+    if wave != "sine":
+        x = _round(x, f, sr, harm=4, lo=1800, hi=4200)
+    return x * adsr(dur - 0.05, 0.01, 0.0, 1.0, 0.05, sr)[:n] * 0.6
 
 
 @sfx("sweep_down", "Pure tone sweep downward.", start=(2000, "Hz"), end=(200, "Hz"), dur=(0.4, "s"), wave=("sine", "sine|saw|square"))
@@ -261,7 +280,7 @@ def glitch(sr=DEFAULT_SR, dur=0.2):
         f = rng.choice([220, 440, 880, 1760, 3520]) * rng.uniform(0.9, 1.1)
         e = min(n, s + seg)
         y[s:e] = O.square(f, e - s, sr) * rng.uniform(0.2, 1.0)
-    y = np.round(y * 6) / 6
+    y = F.lowpass(np.round(y * 6) / 6, 5500, sr)
     return y * perc(dur, 0.001, sr, curve=0.8) * 0.5
 
 
@@ -341,10 +360,11 @@ def heartbeat(sr=DEFAULT_SR, rate=1.0, dur=2.0):
     return F.lowpass(mix(parts, sr), 200, sr)
 
 
-@sfx("tone", "Plain sustained tone with chosen wave.", freq=(440, "Hz or note name (110, '110hz' or 'A2')"), dur=(1.0, "s"), wave=("sine", "any osc wave"))
-def tone(sr=DEFAULT_SR, freq=440, dur=1.0, wave="sine"):
+@sfx("tone", "Plain sustained tone with chosen wave (raw: nothing is rounded off).", freq=(440, "Hz or note name (110, '110hz' or 'A2')"), dur=(1.0, "s"),
+     wave=("sine", "any osc wave"), seed=(0, "noise waves only: a different seed gives a different take"))
+def tone(sr=DEFAULT_SR, freq=440, dur=1.0, wave="sine", seed=0):
     n = samples(dur, sr)
-    x = O.osc(wave, to_hz(freq), n, sr)
+    x = O.osc(wave, to_hz(freq), n, sr, seed=seed)
     return x * adsr(dur - 0.02, 0.01, 0.0, 1.0, 0.02, sr)[:n] * 0.6
 
 
@@ -365,6 +385,23 @@ def typewriter(sr=DEFAULT_SR):
 @sfx("countdown", "Countdown tick: short low tone.", freq=(660, "Hz"))
 def countdown(sr=DEFAULT_SR, freq=660):
     return beep(sr, freq=freq, dur=0.08, wave="square") * 0.8
+
+
+@sfx("vinyl", "Vinyl record surface: crackle, pops and a little hiss and rumble (the bed under lo-fi music; loop it with \"loop\": true).",
+     dur=(4.0, "s"), crackle=(14.0, "clicks per second"), hiss=(0.3, "0..1 surface noise"), seed=(0, "variation"))
+def vinyl(sr=DEFAULT_SR, dur=4.0, crackle=14.0, hiss=0.3, seed=0):
+    n = samples(dur, sr)
+    rng = np.random.default_rng(40 + int(seed))
+    y = np.zeros(n)
+    for _ in range(int(dur * crackle)):
+        s = int(rng.integers(0, n))
+        size = rng.random() ** 3                       # mostly tiny ticks, the odd loud pop
+        m = min(n - s, samples(0.0015 + 0.004 * size, sr))
+        y[s:s + m] += rng.uniform(-1, 1, m) * np.exp(-np.arange(m) / (0.0006 * sr * (1 + 4 * size))) * (0.15 + 0.85 * size)
+    y = F.lowpass(F.highpass(y, 500, sr), 4500, sr)
+    y += F.lowpass(F.highpass(O.pink(n, seed=41 + int(seed)), 1500, sr), 6000, sr) * 0.03 * hiss
+    y += F.lowpass(O.brown(n, seed=42 + int(seed), sr=sr), 60, sr) * 0.1 * hiss
+    return y * 0.8
 
 
 def render_sfx(name: str, sr: int = DEFAULT_SR, **params) -> np.ndarray:

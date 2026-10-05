@@ -60,18 +60,18 @@ def clap(sr=DEFAULT_SR, vel=1.0, decay=0.3):
     return np.tanh(nz * env * 2.0) * (0.5 + 0.5 * vel)
 
 
-@drum("hihat", "Closed hi-hat (metallic noise).", decay=(0.08, "s"), tone=(9000, "Hz brightness"))
-def hihat(sr=DEFAULT_SR, vel=1.0, decay=0.08, tone=9000):
+@drum("hihat", "Closed hi-hat (metallic noise centred on `tone`).", decay=(0.08, "s"), tone=(8000, "Hz brightness (6000 dark .. 11000 crisp)"))
+def hihat(sr=DEFAULT_SR, vel=1.0, decay=0.08, tone=8000):
     n = samples(decay + 0.02, sr)
     metal = sum(O.square(f, n, sr) for f in (296, 410, 522, 663, 781, 934)) / 6
     y = F.highpass(metal * 0.5 + O.white(n, seed=6) * 0.5, tone * 0.7, sr, order=2)
-    y = F.peak(y, tone, sr, 1.5, 4)
-    return y * _dec(n, decay / 3, sr) * perc(decay + 0.02, 0.0005, sr, curve=1.0) * 0.8 * (0.5 + 0.5 * vel)
+    y = F.lowpass(F.peak(y, tone, sr, 1.5, 3), min(tone * 1.4, 0.45 * sr), sr, 0.7)
+    return y * _dec(n, decay / 3, sr) * perc(decay + 0.02, 0.0005, sr, curve=1.0) * 1.15 * (0.5 + 0.5 * vel)
 
 
 @drum("openhat", "Open hi-hat.", decay=(0.4, "s"))
 def openhat(sr=DEFAULT_SR, vel=1.0, decay=0.4):
-    return hihat(sr, vel, decay=decay, tone=8000)
+    return hihat(sr, vel, decay=decay, tone=7500)
 
 
 @drum("tom", "Tom drum.", tune=(120, "Hz"), decay=(0.35, "s"))
@@ -102,16 +102,16 @@ def cowbell(sr=DEFAULT_SR, vel=1.0, decay=0.3):
 def crash(sr=DEFAULT_SR, vel=1.0, decay=1.5):
     n = samples(decay, sr)
     metal = sum(O.square(f * 1.7, n, sr) for f in (296, 410, 522, 663, 781, 934)) / 6
-    y = F.highpass(metal * 0.4 + O.white(n, seed=10) * 0.6, 4000, sr, order=2)
-    y = F.peak(y, 7000, sr, 0.8, 3)
-    return y * _dec(n, decay / 3, sr) * perc(decay, 0.001, sr, curve=1.0) * 0.7 * (0.5 + 0.5 * vel)
+    y = F.highpass(metal * 0.4 + O.white(n, seed=10) * 0.6, 3500, sr, order=2)
+    y = F.lowpass(F.peak(y, 6000, sr, 0.8, 3), 9500, sr, 0.7)
+    return y * _dec(n, decay / 3, sr) * perc(decay, 0.001, sr, curve=1.0) * 0.9 * (0.5 + 0.5 * vel)
 
 
 @drum("ride", "Ride cymbal ping.", decay=(1.0, "s"))
 def ride(sr=DEFAULT_SR, vel=1.0, decay=1.0):
     n = samples(decay, sr)
-    ping = O.sine(3200, n, sr) * _dec(n, 0.15, sr) * 0.4 + O.fm(1800, n, sr, ratio=1.41, index=3.0) * _dec(n, decay / 3, sr) * 0.3
-    wash = F.highpass(O.white(n, seed=12), 6000, sr) * _dec(n, decay / 2.5, sr) * 0.3
+    ping = O.sine(2600, n, sr) * _dec(n, 0.12, sr) * 0.2 + O.fm(1800, n, sr, ratio=1.41, index=1.6) * _dec(n, decay / 3, sr) * 0.3
+    wash = F.lowpass(F.highpass(O.white(n, seed=12), 5000, sr), 10000, sr) * _dec(n, decay / 2.5, sr) * 0.3
     return (ping + wash) * perc(decay, 0.001, sr, curve=1.0) * 0.8 * (0.5 + 0.5 * vel)
 
 
@@ -127,10 +127,10 @@ def shaker(sr=DEFAULT_SR, vel=1.0, decay=0.12):
 def tambourine(sr=DEFAULT_SR, vel=1.0, decay=0.25):
     n = samples(decay, sr)
     y = np.zeros(n)
-    for i, f in enumerate((5200, 6100, 7300, 8400)):
-        y += O.fm(f, n, sr, ratio=1.3, index=2.0) * _dec(n, decay / (3 + i), sr) * 0.2
-    y += F.highpass(O.white(n, seed=14), 5000, sr) * _dec(n, decay / 4, sr) * 0.4
-    return y * perc(decay, 0.001, sr, curve=1.0) * 0.8 * (0.5 + 0.5 * vel)
+    for i, f in enumerate((4100, 5200, 6100, 7300)):   # jingle pairs (plain sines: FM this high only aliased)
+        y += (O.sine(f, n, sr) + 0.6 * O.sine(f * 1.31, n, sr)) * _dec(n, decay / (3 + i), sr) * 0.12
+    y += F.lowpass(F.highpass(O.white(n, seed=14), 4500, sr), 10000, sr) * _dec(n, decay / 4, sr) * 0.4
+    return y * perc(decay, 0.001, sr, curve=1.0) * 1.05 * (0.5 + 0.5 * vel)
 
 
 @drum("woodblock", "Wood block / clave.", tune=(1100, "Hz"))
@@ -154,6 +154,9 @@ def zap_kick(sr=DEFAULT_SR, vel=1.0, decay=0.3):
     n = samples(decay, sr)
     f = 50 + 1500 * _dec(n, 0.03, sr)
     return np.tanh(O.sine(f, n, sr) * 2 * _dec(n, decay / 3, sr)) * perc(decay, 0.0005, sr, curve=1.0) * (0.6 + 0.4 * vel)
+
+
+from . import percussion  # noqa: E402,F401  (registers more drums)
 
 
 def render_drum(name: str, sr: int = DEFAULT_SR, vel: float = 1.0, **params) -> np.ndarray:
